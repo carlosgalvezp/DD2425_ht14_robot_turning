@@ -1,0 +1,14 @@
+<launch>
+
+  <param name="Robot_turning/W/KP" value="0.005"/>
+  <param name="Robot_turning/W/KD" value="0.0"/>
+  <param name="Robot_turning/W/KI" value="0.0"/>
+
+  <!-- Odometry -->
+  <node pkg="odometry" type="odometry" name="odometry">
+
+  <!-- Robot_turning -->
+  <node pkg="robot_turning" type="robot_turning" name="robot_turning" output="screen">	
+
+  </node>
+</launch>

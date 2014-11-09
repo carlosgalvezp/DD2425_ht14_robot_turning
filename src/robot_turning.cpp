@@ -1,8 +1,7 @@
 #include "ros/ros.h"
 #include "geometry_msgs/Pose2D.h"
 #include <geometry_msgs/Twist.h>
-
-#include <cmath>
+#include "ras_utils/controller.h"
 
 #define PUBLISH_RATE 10 // Hz
 #define QUEUE_SIZE 1000
@@ -17,23 +16,27 @@ public:
 
 private:
 
-    // TODO: obtained from imu or odometry.. or both?
-    double current_angle;
-
-    // TODO: make it as param in launch file
-    double turning_speed;
-
-    // angle obtained from odometry first time
-    double base_angle;
-    bool first_time_called;
-
     ros::NodeHandle n_;
 
     ros::Subscriber pose2d_sub_;
     ros::Publisher twist_pub_;
 
+    // angle obtained from imu or odometry.. or both?
+    double current_angle;
+
+    // rotating angular speed
+    double w;
+
+    // angle obtained from odometry first time
+    double base_angle;
+    bool first_time_called;
+
     // Callback func when pose data received
     void poseCallback(const geometry_msgs::Pose2D::ConstPtr& msg);
+
+    // pid controller for angular velocity
+    Controller controller_w;
+    double kp_w, ki_w, kd_w;
 };
 
 int main (int argc, char* argv[])
@@ -45,21 +48,28 @@ int main (int argc, char* argv[])
     // ** Create object
     Robot_turning turn(n);
 
-    // ** turn 90 degrees (to the right?????)
+    // ** turn 90 degrees (to the right)
     turn.run( M_PI / 2 );
 }
 
 Robot_turning::Robot_turning(const ros::NodeHandle &n)
     : n_(n)
 {
-    turning_speed = 0.5;
+    // Initial values
+    w = 0.0;
     current_angle = 0;
-    first_time_called = true;
 
     // Publisher
     twist_pub_ = n_.advertise<geometry_msgs::Twist>("/motor_controller/twist", QUEUE_SIZE);
     // Subscriber
     pose2d_sub_ = n_.subscribe("/robot/pose2d", QUEUE_SIZE,  &Robot_turning::poseCallback, this);
+
+    // params from launch file
+    n_.getParam("Robot_turning/W/KP", kp_w);
+    n_.getParam("Robot_turning/W/KD", kd_w);
+    n_.getParam("Robot_turning/W/KI", ki_w);
+
+    controller_w = Controller(kp_w,kd_w,ki_w, 10);
 }
 
 void Robot_turning::poseCallback(const geometry_msgs::Pose2D::ConstPtr& msg)
@@ -73,30 +83,27 @@ void Robot_turning::poseCallback(const geometry_msgs::Pose2D::ConstPtr& msg)
     {
         current_angle = msg->theta - base_angle;
 
-        std::cout << "update:" << current_angle << " base: " << base_angle << std::endl;
+        //std::cout << "update:" << current_angle << " base: " << base_angle << std::endl;
     }
 }
 
 void Robot_turning::run( double turning_angle )
 {
+    first_time_called = true;
+
     ros::Rate loop_rate(PUBLISH_RATE);
 
     while(ros::ok() && ( ( ( current_angle < turning_angle) && ( turning_angle > 0 ) ) || ( ( current_angle > turning_angle) && ( turning_angle < 0 ) ) ) )
     {
         geometry_msgs::Twist msg;
 
-        std::cout << "current_angle: " << current_angle << " turning_angle: " << turning_angle << std::endl;
+        // compute angular velocity
+        controller_w.setData(turning_angle, current_angle);
+        w = controller_w.computeControl();
+        // turning
+        msg.angular.z = w;
 
-        if( turning_angle < 0 )
-        {
-            // turning left
-            msg.angular.z = turning_speed;
-        }
-        else
-        {
-            // turning right
-            msg.angular.z = -turning_speed;
-        }
+        std::cout << "current_angle: " << current_angle << " turning_angle: " << turning_angle << " w: " << w << std::endl;
 
         twist_pub_.publish(msg);
 
@@ -105,11 +112,12 @@ void Robot_turning::run( double turning_angle )
         loop_rate.sleep();
     }
 
+    // publish 0 for stopping motion
     geometry_msgs::Twist msg;
     msg.angular.z = 0;
     twist_pub_.publish(msg);
-    ros::spinOnce();
-    loop_rate.sleep();
+
+    // maybe should publish: done ?
 
     std::cout << "Exiting...\n";
 }

@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  ras_utils
 )
 
 ## System dependencies are found with CMake's conventions
@@ -158,6 +159,10 @@ catkin_package(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+)
 
 add_executable(robot_turning src/robot_turning.cpp)
 target_link_libraries(robot_turning ${catkin_LIBRARIES})

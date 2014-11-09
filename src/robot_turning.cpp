@@ -45,7 +45,7 @@ int main (int argc, char* argv[])
     // ** Create object
     Robot_turning turn(n);
 
-    // ** turn 90 degrees (to the right) // TODO: !!! just positive angle
+    // ** turn 90 degrees (to the right?????)
     turn.run( M_PI / 2 );
 }
 
@@ -90,12 +90,12 @@ void Robot_turning::run( double turning_angle )
         if( turning_angle < 0 )
         {
             // turning left
-            msg.angular.z = -turning_speed;
+            msg.angular.z = turning_speed;
         }
         else
         {
             // turning right
-            msg.angular.z = turning_speed;
+            msg.angular.z = -turning_speed;
         }
 
         twist_pub_.publish(msg);
